@@ -12,7 +12,7 @@ datasource db {
 
 model ScrapedEntry {
   id        Int      @id @default(autoincrement())
-  userId    Int      @unique
+  userId    String   @unique
   cards     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

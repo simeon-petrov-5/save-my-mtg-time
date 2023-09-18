@@ -1,16 +1,12 @@
 <script setup lang="ts">
-const foundData = ref<any[]>([]);
+const foundData = ref<any>({ deckbox: [], moxfield: [] });
 const form = reactive({
   deckboxIds: "444030\n1338250",
-  moxfieldIds: "",
-  cards: "Negate\nAbhorrent Overlord",
+  moxfieldIds: "Izk3m_jdYUSohXfF62s8eA",
+  cards: "Negate\nAbhorrent Overlord\nElspeth, Sun's Champion",
 });
 
-const transformIds = (string: string) =>
-  string
-    .split("\n")
-    .map((e) => Number(e) ?? 0)
-    .filter(Boolean);
+const transformIds = (string: string) => string.split("\n").filter(Boolean);
 
 const onSubmit = async () => {
   const body = {
@@ -21,7 +17,7 @@ const onSubmit = async () => {
 
   const { data } = await useFetch("/api/mtg", { method: "post", body });
   console.log(data);
-  foundData.value = data.value ?? [];
+  foundData.value = data.value ?? {};
 };
 </script>
 
@@ -82,7 +78,17 @@ const onSubmit = async () => {
 
   <h2>Found:</h2>
   <ul>
-    <li v-for="user of foundData" :key="user.userId">
+    <li v-for="user of foundData.deckbox" :key="user.userId">
+      <span>{{ user.userId }}</span>
+
+      <ul>
+        <li v-for="card in user.cards" :key="card.id">{{ card.name }}</li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li v-for="user of foundData.moxfield" :key="user.userId">
       <span>{{ user.userId }}</span>
 
       <ul>

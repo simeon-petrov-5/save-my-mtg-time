@@ -12,7 +12,7 @@ type CardItem = {
   cardUrl: string;
 };
 
-type CardResp = { userId: number; cards: CardItem[] }
+type CardResp = { userId: string; cards: CardItem[] };
 
 const getLastPage = (page: pw.Page) => {
   return page.$eval(".controls a:last-child", async (linkEl) => {
@@ -93,13 +93,77 @@ const scrapeDeckbox = async (id: number) => {
   return cardsList;
 };
 
+const scrapeMoxfield = async (id: string) => {
+  console.info("Starting to scrape for ", id);
+  const browser = await pw.chromium.launch({ headless: false });
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
+  const initUrl = `https://www.moxfield.com/decks/${id}`;
+  await page.goto(initUrl);
+  await page.waitForLoadState("networkidle");
+
+  const cardsList: CardItem[] = await page.$$eval(
+    '.deckview a[href^="/cards/"]',
+    (listedCards: HTMLElement[]) => {
+      const list: CardItem[] = [];
+      listedCards.forEach((listedCard) => {
+        const cardData: CardItem = {
+          name: "",
+          count: "",
+          id: "",
+          urlId: "",
+          cardUrl: "",
+        };
+        cardData.id = listedCard.getAttribute("id") ?? "";
+        cardData.name = listedCard.innerText ?? "FAILED TO GET";
+        cardData.count = "0";
+        cardData.cardUrl =
+          "https://www.moxfield.com" + listedCard.getAttribute("href") ?? "";
+
+        cardData.urlId = listedCard.getAttribute("id")?.split("-")[1] ?? "";
+
+        list.push(cardData);
+      });
+
+      return list;
+    }
+  );
+  page.close();
+  return cardsList;
+};
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
-  const data: CardResp[] = [];
+  const deckboxResults: CardResp[] = [];
+  const moxfieldResults: CardResp[] = [];
 
-  for (const userId of body.deckbox as number[]) {
+  for (const deckId of body.moxfield) {
+    const scrapedData = await prisma.scrapedEntry.findFirst({
+      where: { userId: { equals: deckId } },
+    });
+
+    if (scrapedData === null || isOutdated(scrapedData.createdAt, new Date())) {
+      const cardsList = await scrapeMoxfield(deckId);
+      try {
+        await prisma.scrapedEntry.create({
+          data: {
+            userId: deckId,
+            cards: JSON.stringify(cardsList),
+          },
+        });
+      } catch (e) {
+        console.error("Prisma failed", e);
+      }
+    }
+
+    moxfieldResults.push({
+      userId: deckId,
+      cards: scrapedData?.cards ? JSON.parse(scrapedData?.cards) : [],
+    });
+  }
+
+  for (const userId of body.deckbox) {
     const scrapedData = await prisma.scrapedEntry.findFirst({
       where: { userId: { equals: userId } },
     });
@@ -117,7 +181,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    data.push({
+    deckboxResults.push({
       userId,
       cards: scrapedData?.cards ? JSON.parse(scrapedData?.cards) : [],
     });
@@ -127,15 +191,24 @@ export default defineEventHandler(async (event) => {
     name: card,
   }));
 
-  const findings: CardResp[] = [];
+  const findings: { deckbox: CardResp[]; moxfield: CardResp[] } = {
+    deckbox: [],
+    moxfield: [],
+  };
 
-  data.forEach((userEntry) => {
+  deckboxResults.forEach((userEntry) => {
     const finds = intersectionBy(userEntry.cards, search, "name");
     if (finds.length > 0) {
-      findings.push({ userId: userEntry.userId, cards: finds });
+      findings.deckbox.push({ userId: userEntry.userId, cards: finds });
     }
   });
 
-  console.log("FINDINGS", findings[0].cards);
+  moxfieldResults.forEach((userEntry) => {
+    const finds = intersectionBy(userEntry.cards, search, "name");
+    if (finds.length > 0) {
+      findings.moxfield.push({ userId: userEntry.userId, cards: finds });
+    }
+  });
+
   return findings;
 });
