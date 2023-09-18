@@ -7,7 +7,8 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "prisma": "npx prisma migrate dev --name init"
   },
   "devDependencies": {
     "@nuxt/devtools": "latest",
@@ -16,7 +17,9 @@
     "nuxt": "^3.7.3"
   },
   "dependencies": {
+    "@prisma/client": "^5.3.1",
     "lodash.intersectionby": "^4.7.0",
-    "playwright": "^1.38.0"
+    "playwright": "^1.38.0",
+    "prisma": "^5.3.1"
   }
 }

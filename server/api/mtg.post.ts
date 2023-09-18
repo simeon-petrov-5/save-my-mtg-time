@@ -1,6 +1,8 @@
-import fs from "fs";
 import pw from "playwright";
 import intersectionBy from "lodash.intersectionby";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 type CardItem = {
   name: string;
@@ -10,10 +12,7 @@ type CardItem = {
   cardUrl: string;
 };
 
-const cachePath = "cachedData.json";
-const fileContents = fs.readFileSync(cachePath, "utf8");
-const cachedData: { [userId: number]: { cards: CardItem[]; createdAt: Date } } =
-  JSON.parse(fileContents);
+type CardResp = { userId: number; cards: CardItem[] }
 
 const getLastPage = (page: pw.Page) => {
   return page.$eval(".controls a:last-child", async (linkEl) => {
@@ -94,48 +93,42 @@ const scrapeDeckbox = async (id: number) => {
   return cardsList;
 };
 
+
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
-  const data = [];
+  const data: CardResp[] = [];
 
   for (const userId of body.deckbox as number[]) {
-    if (
-      !cachedData[userId] ||
-      isOutdated(cachedData[userId].createdAt, new Date())
-    ) {
+    const scrapedData = await prisma.scrapedEntry.findFirst({
+      where: { userId: { equals: userId } },
+    });
+    if (scrapedData === null || isOutdated(scrapedData.createdAt, new Date())) {
       const cardsList = await scrapeDeckbox(userId);
-      cachedData[userId] = {
-        cards: cardsList,
-        createdAt: new Date(),
-      };
-
       try {
-        // Write the JSON string to the file synchronously
-        fs.writeFileSync(cachePath, JSON.stringify(cachedData));
-        console.log("Array saved to file successfully.");
-      } catch (err) {
-        console.error("Error writing to file:", err);
+        await prisma.scrapedEntry.create({
+          data: {
+            userId: userId,
+            cards: JSON.stringify(cardsList),
+          },
+        });
+      } catch (e) {
+        console.error("Prisma failed", e);
       }
     }
 
     data.push({
       userId,
-      cards: cachedData[userId].cards,
+      cards: scrapedData?.cards ? JSON.parse(scrapedData?.cards) : [],
     });
   }
-
-  console.log(
-    "Data",
-    data.map((e) => e.userId)
-  );
 
   const search = body.cards.map((card: string) => ({
     name: card,
   }));
-  const findings: {
-    userId: number;
-    cards: CardItem[];
-  }[] = [];
+
+  const findings: CardResp[] = [];
+
   data.forEach((userEntry) => {
     const finds = intersectionBy(userEntry.cards, search, "name");
     if (finds.length > 0) {
