@@ -1,6 +1,7 @@
-import pw from "playwright";
 import intersectionBy from "lodash.intersectionby";
 import { PrismaClient } from "@prisma/client";
+import axios from "axios";
+import * as cheerio from "cheerio";
 
 const prisma = new PrismaClient();
 
@@ -14,42 +15,38 @@ type CardItem = {
 
 type CardResp = { userId: string; cards: CardItem[] };
 
-const getLastPage = (page: pw.Page) => {
-  return page.$eval(".controls a:last-child", async (linkEl) => {
-    const href = (await linkEl?.getAttribute("href")) ?? "";
-    const matched = href.match(/p=(\d+)/) ?? ["", 0];
-    return Number(matched[1]);
-  });
+const getLastPage = ($cheerio: cheerio.CheerioAPI) => {
+  const href = $cheerio(".controls a:last-child").attr("href") ?? "";
+  const matched = href.match(/p=(\d+)/) ?? ["", 0];
+  return Number(matched[1]);
 };
 
-const getCards = (page: pw.Page) => {
-  return page.$$eval("#set_cards_table_details tr[id]", (listedCards) => {
-    const cardsList: CardItem[] = [];
-    listedCards.forEach((listedCard) => {
-      const cardData: CardItem = {
-        name: "",
-        count: "",
-        id: "",
-        urlId: "",
-        cardUrl: "",
-      };
-      cardData.id = listedCard.getAttribute("id") ?? "";
-      cardData.name =
-        (listedCard.querySelector("td:nth-child(2)") as any)?.innerText ??
-        "FAILED TO GET";
-      cardData.count =
-        (listedCard.querySelector(".tradelist_count") as any)?.innerText ?? 1;
-      cardData.cardUrl =
-        (listedCard.querySelector("td > a") as any)?.getAttribute("href") ?? "";
+const getCards = ($cheerio: cheerio.CheerioAPI) => {
+  const cardsList: CardItem[] = [];
+  const cards = $cheerio("#set_cards_table_details tr[id]");
 
-      const idMatch = cardData.cardUrl.match(/printing=(\d+)/) ?? ["", ""];
-      cardData.urlId = idMatch[1];
+  cards.each(function () {
+    const listedCard = $cheerio(this);
 
-      cardsList.push(cardData);
-    });
+    const cardData: CardItem = {
+      name: "",
+      count: "",
+      id: "",
+      urlId: "",
+      cardUrl: "",
+    };
+    cardData.id = listedCard.attr("id") ?? "";
+    cardData.name =
+      listedCard.find("td:nth-child(2)").text().trim() ?? "FAILED TO GET";
+    cardData.count = listedCard.find(".tradelist_count").text() ?? "?";
+    cardData.cardUrl = listedCard.find("td > a").attr("href") ?? "";
+    const idMatch = cardData.cardUrl.match(/printing=(\d+)/) ?? ["", ""];
+    cardData.urlId = idMatch[1];
 
-    return cardsList;
+    cardsList.push(cardData);
   });
+
+  return cardsList;
 };
 
 function isOutdated(cacheDate: Date, targetDate: Date) {
@@ -61,75 +58,56 @@ function isOutdated(cacheDate: Date, targetDate: Date) {
   // return timeDifference >= thirtyMinutesInMilliseconds;
 }
 
-const scrapeDeckbox = async (id: number) => {
+const scrapeDeckbox = async (id: string) => {
   console.info("Starting to scrape for ", id);
-  const browser = await pw.chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  const page = await context.newPage();
   const cardsList: CardItem[] = [];
 
   const p = 1;
   const initUrl = `https://deckbox.org/sets/${id}?p=${p}&v=l`;
-  await page.goto(initUrl);
-  await page.waitForLoadState("networkidle");
+  const { data } = await axios.get(initUrl);
+  let $ = cheerio.load(data);
 
-  const lastPage = await getLastPage(page);
+  const lastPage = getLastPage($);
 
-  for (let index = p; index < lastPage + 1; index++) {
+  for (let index = 1; index < lastPage + 1; index++) {
     const targetUrl = `https://deckbox.org/sets/${id}?p=${index}&v=l`;
     if (initUrl !== targetUrl) {
-      await page.goto(targetUrl);
-      await page.waitForLoadState("networkidle");
+      const { data } = await axios.get(targetUrl);
+      $ = cheerio.load(data);
     }
 
-    const list = await getCards(page);
+    const list = getCards($);
     cardsList.push(...list);
     console.info(
       `Scraped for ID ${id} page ${index}. Current count ${cardsList.length}`
     );
   }
-
-  page.close();
   return cardsList;
 };
 
 const scrapeMoxfield = async (id: string) => {
   console.info("Starting to scrape for ", id);
-  const browser = await pw.chromium.launch({ headless: false });
-  const context = await browser.newContext();
-  const page = await context.newPage();
-
-  const initUrl = `https://www.moxfield.com/decks/${id}`;
-  await page.goto(initUrl);
-  await page.waitForLoadState("networkidle");
-
-  const cardsList: CardItem[] = await page.$$eval(
-    '.deckview a[href^="/cards/"]',
-    (listedCards: HTMLElement[]) => {
-      const list: CardItem[] = [];
-      listedCards.forEach((listedCard) => {
-        const cardData: CardItem = {
-          name: "",
-          count: "",
-          id: "",
-          urlId: "",
-          cardUrl: "",
-        };
-        cardData.id = listedCard.getAttribute("id") ?? "";
-        cardData.name = listedCard.innerText ?? "FAILED TO GET";
-        cardData.count = "0";
-        cardData.cardUrl =
-          "https://www.moxfield.com" + listedCard.getAttribute("href") ?? "";
-
-        cardData.urlId = listedCard.getAttribute("id")?.split("-")[1] ?? "";
-
-        list.push(cardData);
-      });
-
-      return list;
-    }
+  const { data } = await axios.get(
+    `https://api2.moxfield.com/v3/decks/all/${id}`
   );
-  page.close();
+
+  const cardsList: CardItem[] = [];
+
+  Object.keys(data.boards).forEach((boardType) => {
+    const { cards } = data.boards[boardType];
+
+    Object.keys(cards).forEach((cardId) => {
+      const entry = cards[cardId];
+      const cardData: CardItem = {
+        id: cardId,
+        name: entry.card.name,
+        count: entry.quantity,
+        urlId: cardId,
+        cardUrl: `https://assets.moxfield.net/cards/card-${cardId}-normal.webp`,
+      };
+      cardsList.push(cardData);
+    });
+  });
   return cardsList;
 };
 
@@ -164,6 +142,7 @@ export default defineEventHandler(async (event) => {
   }
 
   for (const userId of body.deckbox) {
+    console.log("itterate for", userId);
     const scrapedData = await prisma.scrapedEntry.findFirst({
       where: { userId: { equals: userId } },
     });
@@ -188,7 +167,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const search = body.cards.map((card: string) => ({
-    name: card,
+    name: card.trim(),
   }));
 
   const findings: { deckbox: CardResp[]; moxfield: CardResp[] } = {

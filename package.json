@@ -8,7 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "prisma": "npx prisma migrate dev --name init"
+    "prisma": "prisma migrate dev --name init",
+    "prisma:reset": "prisma migrate reset"
   },
   "devDependencies": {
     "@nuxt/devtools": "latest",
@@ -18,8 +19,9 @@
   },
   "dependencies": {
     "@prisma/client": "^5.3.1",
+    "axios": "^1.5.0",
+    "cheerio": "^1.0.0-rc.12",
     "lodash.intersectionby": "^4.7.0",
-    "playwright": "^1.38.0",
     "prisma": "^5.3.1"
   }
 }
