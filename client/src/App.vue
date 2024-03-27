@@ -1,68 +1,243 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
-import { ReqBody } from "../../api/src/models/ReqBody";
-import { CardsResp } from "../../api/src/models/CardsResp";
+import type { ReqBody } from '../../api/src/models/ReqBody';
+import type { CardsResp } from '../../api/src/models/CardsResp';
+import Loader from './components/Loader.vue';
 
 const form = reactive({
   sources: [
-    "https://www.moxfield.com/decks/C7cMWK5PzE6jbVuTFh916g",
-    "https://www.moxfield.com/decks/0Vqrb1PCT06gr7hsq-4u0A",
-    "https://deckbox.org/sets/2205627?s=i&o=d"
+    'https://www.moxfield.com/decks/C7cMWK5PzE6jbVuTFh916g',
+    'https://www.moxfield.com/decks/0Vqrb1PCT06gr7hsq-4u0A',
+    'https://deckbox.org/sets/2205627?s=i&o=d'
   ].join('\n'),
   cards: [
-    "Negate",
-    "Abhorrent Overlord",
-    "Elspeth, Sun's Champion",
-    "Don't Move",
-    "Dragonlord's Servant"
+    'Negate',
+    'Abhorrent Overlord',
+    'Elspeth, Sun\'s Champion',
+    'Don\'t Move',
+    'Dragonlord\'s Servant'
   ].join('\n'),
 });
-const searchData = ref<CardsResp | null>(null)
+const searchData = ref<CardsResp | null>(null);
+const isLoading = ref(false);
 
-const stringToArr = (string: string) => string.split("\n").filter(Boolean);
+const stringToArr = (string: string) => string.split('\n').filter(Boolean);
 
-const onSubmit = async () => {
+async function onSubmit() {
+  isLoading.value = true;
   const body: ReqBody = {
     sources: stringToArr(form.sources),
     cards: stringToArr(form.cards),
   };
 
-  const resp = await fetch("http://0.0.0.0:8888/api/cards", { method: "POST", body: JSON.stringify(body) });
-  const data = await resp.json();
-  console.log(data);
-  searchData.value = data ?? {};
-};
+  try {
+    const resp = await fetch('http://0.0.0.0:8888/api/cards', { method: 'POST', body: JSON.stringify(body) });
+    const data = await resp.json();
+    searchData.value = data ?? {};
+  }
+  catch (e) {
+    console.error('Ooops', e);
+  }
+  finally {
+    isLoading.value = false;
+  }
+}
 </script>
 
 <template>
-  <form @submit.prevent="onSubmit" class="grid grid-cols-1 gap-6 max-w-3xl w-full mx-auto">
-    <div>
-      <label for="sourcess" class="w-full">
-        Links to Deckbox or Moxfield decks and pages
-      </label>
-      <textarea v-model="form.sources" name="sourcess" id="sourcess" cols="30" rows="5" resize="none"
-        placeholder="List each ID on a new row ..." class="resize-none w-full"></textarea>
+  <Transition>
+    <div v-if="isLoading" class="loadingOverlay">
+      <Loader />
     </div>
+  </Transition>
+  <div class="content">
+    <h1 class="pageTitle">
+      Your wishlist,<br>
+      found efortlessly.
+    </h1>
 
+    <form class="form" @submit.prevent="onSubmit">
+      <div class="row">
+        <label for="sourcess">
+          Links to
+          <span class="source deckbox">
+            <img src="https://deckbox.org/favicon.ico" alt="moxfield favicon">Deckbox
+          </span>
+          or
+          <span class="source moxfield">
+            <img src="https://www.moxfield.com/favicon.ico" alt="moxfield favicon"> Moxfield
+          </span>
+          decks and pages
+        </label>
+        <textarea
+          id="sourcess"
+          v-model="form.sources"
+          name="sourcess"
+          cols="30"
+          rows="4"
+          placeholder="List each ID on a new row ..."
+          required
+        />
+      </div>
 
-    <div>
-      <label for="cards">
-        Card names
-        <textarea v-model="form.cards" name="cards" id="cards" cols="30" rows="10" resize="none"
-          placeholder="List each card name on a new row ..." class="resize-none" required></textarea>
-      </label>
-    </div>
-    <button class="w-48 mx-auto" type="submit">Submit</button>
-  </form>
+      <div class="row">
+        <label for="cards">Card names</label>
+        <textarea
+          id="cards"
+          v-model="form.cards"
+          name="cards"
+          cols="30"
+          rows="6"
+          placeholder="List each card name on a new row ..."
+          required
+        />
+      </div>
+      <button type="submit">
+        Submit
+      </button>
+    </form>
 
-  <template v-if="searchData">
-    <h2>These cards were found:</h2>
+    <template v-if="searchData">
+      <h2>Results</h2>
 
-    <article v-for="(cards, sourceLink) in searchData">
-      <h2>{{ sourceLink }}</h2>
-      <ul>
-        <li v-for="card in cards" :key="card.id">{{ card.name }}</li>
-      </ul>
-    </article>
-  </template>
+      <section class="results">
+        <article v-for="(cards, sourceLink) in searchData" :key="sourceLink">
+          <h2 class="title">
+            <a
+              :href="sourceLink.toString()"
+              class=""
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ sourceLink }}</a>
+          </h2>
+          <ul>
+            <li v-for="card in cards" :key="card.id">
+              <VTooltip placement="top-start">
+                <p>{{ card.name }}</p>
+
+                <template #popper>
+                  <img class="imgPreview" :src="card.imgUrl" alt="">
+                </template>
+              </VTooltip>
+            </li>
+          </ul>
+        </article>
+      </section>
+    </template>
+  </div>
 </template>
+
+<style>
+.v-enter-active,
+.v-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+  opacity: 0;
+}
+</style>
+
+<style lang="scss" scoped>
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  background-color: var(--pico-contrast-focus);
+  backdrop-filter: blur(4px);
+  /* You may adjust the blur value as needed */
+}
+
+.content {
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 1440px;
+  padding: 0.75rem;
+
+  @media (min-width: 1024px) {
+    & {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    & {
+      padding: 1rem;
+    }
+  }
+
+  .pageTitle {
+    background: linear-gradient(to right, #FFFFFF 0%, var(--pico-primary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 42rem;
+    text-align: center;
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    text-transform: uppercase;
+  }
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 40rem;
+  width: 100%;
+  gap: 1rem;
+
+  .row label {
+    width: 100%;
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  .source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    &.deckbox {
+      color: #e38824;
+    }
+
+    &.moxfield {
+      color: #e85485;
+    }
+  }
+}
+
+article .title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+  /* Default gap */
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  @media (min-width: 1024px) {
+    gap: 1.5rem;
+  }
+}
+
+.imgPreview {
+  width: 12rem;
+}
+</style>
