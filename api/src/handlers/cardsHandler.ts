@@ -5,10 +5,11 @@ import { extractMoxfield } from "../utils/extractMoxfield";
 import { ReqBody } from "../models/ReqBody";
 import { Card } from "../models/Card";
 import { extractDeckbox } from "../utils/extractDeckbox";
+import { CardsResp } from "../models/CardsResp";
 
 // TS - type the body?
 export const postCardsHandler = async (ctx: Context) => {
-  const payload = ctx.body as ReqBody;
+  const payload = JSON.parse(ctx.body as unknown as string) as ReqBody;
   const promises: Promise<{ source: string; cards: Map<string, Card> }>[] = [];
 
   payload.sources.forEach((sourceUrl) => {
@@ -20,7 +21,7 @@ export const postCardsHandler = async (ctx: Context) => {
   });
 
   const decksCards = await Promise.allSettled(promises);
-  const result: { [k: string]: Card[] } = {};
+  const result: CardsResp = {};
 
   payload.cards.forEach((cardName) => {
     decksCards.forEach((promise) => {
