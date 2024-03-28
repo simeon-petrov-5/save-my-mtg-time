@@ -113,7 +113,7 @@ async function onSubmit() {
           <ul>
             <li v-for="card in cards" :key="card.id">
               <VTooltip placement="top-start">
-                <p>{{ card.name }}</p>
+                <span>{{ card.name }}</span>
 
                 <template #popper>
                   <img class="imgPreview" :src="card.imgUrl" alt="">
@@ -136,6 +136,15 @@ async function onSubmit() {
 .v-enter-from,
 .v-leave-to {
   opacity: 0;
+}
+
+
+.v-popper{
+  display: inline-block;
+}
+.v-popper--theme-tooltip .v-popper__inner{
+  padding: 0 !important;
+  border-radius: 12px;
 }
 </style>
 
@@ -239,5 +248,7 @@ article .title {
 
 .imgPreview {
   width: 12rem;
+  border-radius: 12px;
+  overflow: hidden;
 }
 </style>

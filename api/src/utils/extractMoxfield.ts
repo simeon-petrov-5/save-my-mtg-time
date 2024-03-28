@@ -27,18 +27,18 @@ export const extractMoxfield = async (
     for (const boardType in data.boards) {
       const { cards } = data.boards[boardType];
 
-      for (const cardId in cards) {
-        const entry = cards[cardId];
+      for (const uniqueCardId in cards) {
+        const entry = cards[uniqueCardId];
 
         const existing = allCards.get(entry.card.name);
         if (existing) {
           existing.count += entry.quantity;
         } else {
           const newCard: Card = {
-            id: cardId,
+            id: entry.card.id,
             name: entry.card.name,
             count: entry.quantity,
-            imgUrl: `https://assets.moxfield.net/cards/card-${cardId}-normal.webp`,
+            imgUrl: `https://assets.moxfield.net/cards/card-${entry.card.id}-normal.webp`,
           };
           allCards.set(entry.card.name, newCard);
         }
