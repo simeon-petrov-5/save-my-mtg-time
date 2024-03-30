@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 import type { ReqBody } from '../../api/src/models/ReqBody';
 import type { CardsResp } from '../../api/src/models/CardsResp';
 import Loader from './components/Loader.vue';
+import { nanoid } from 'nanoid'
+import { Site } from "../../api/src/constants/sites";
+
 
 const form = reactive({
   sources: [
@@ -20,6 +23,7 @@ const form = reactive({
 });
 const searchData = ref<CardsResp | null>(null);
 const isLoading = ref(false);
+const crawlProgress = ref<{ [key in Site]: { total: number; current: number } } | null>(null)
 
 const stringToArr = (string: string) => string.split('\n').filter(Boolean);
 
@@ -31,9 +35,17 @@ async function onSubmit() {
   };
 
   try {
-    const resp = await fetch('http://0.0.0.0:8888/api/cards', { method: 'POST', body: JSON.stringify(body) });
+    const trackingTM = handleProgressTracking();
+    const resp = await fetch(`http://0.0.0.0:8888/api/cards?userId=${getUserId()}`, { method: 'POST', body: JSON.stringify(body) });
     const data = await resp.json();
     searchData.value = data ?? {};
+    clearTimeout(trackingTM)
+
+    setTimeout(() => {
+      document.querySelector('#results')?.scrollIntoView({
+        behavior: 'smooth'
+      });
+    }, 100)
   }
   catch (e) {
     console.error('Ooops', e);
@@ -43,26 +55,43 @@ async function onSubmit() {
   }
 }
 
-onMounted(() => {
-  const events = new EventSource(`http://0.0.0.0:8888/api/cards/sse`);
-  events.onmessage = (event) => {
-    console.log(event.data, event)
-  };
-  events.onerror = (event) => {
-    if (event.eventPhase === EventSource.CLOSED) {
-      events.close()
-    } else {
-      console.error('Error with SSE: ', event)
-    }
-  };
-  console.log('events', events)
-})
+const getUserId = () => {
+  const userId = sessionStorage.getItem('userId');
+  if (!userId) {
+    const id = nanoid()
+    sessionStorage.setItem('userId', id);
+    return id;
+  }
+  return userId;
+}
+
+const handleProgressTracking = () => {
+  return setTimeout(() => {
+    const events = new EventSource(`http://0.0.0.0:8888/api/cards/sse?userId=${getUserId()}`);
+    events.onmessage = (event) => {
+      crawlProgress.value = JSON.parse(event.data);
+    };
+    events.onerror = (event) => {
+      if (event.eventPhase === EventSource.CLOSED) {
+        events.close();
+        crawlProgress.value = null;
+      } else {
+        console.error('Error with SSE: ', event)
+      }
+    };
+  }, 1000)
+
+}
 </script>
 
 <template>
   <Transition>
     <div v-if="isLoading" class="loadingOverlay">
       <Loader />
+      <p v-if="crawlProgress?.moxfield.total">Moxfield pages progress: {{ crawlProgress.moxfield.current }}/{{
+      crawlProgress.moxfield.total }}</p>
+      <p v-if="crawlProgress?.deckbox.total">Deckbox pages progress: {{ crawlProgress.deckbox.current }}/{{
+      crawlProgress.deckbox.total }}</p>
     </div>
   </Transition>
   <div class="content">
@@ -99,7 +128,7 @@ onMounted(() => {
     </form>
 
     <template v-if="searchData">
-      <h2>Results</h2>
+      <h2 id="results">Results</h2>
 
       <section class="results">
         <article v-for="(cards, sourceLink) in searchData" :key="sourceLink">
@@ -152,10 +181,22 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   z-index: 10;
   background-color: var(--pico-contrast-focus);
   backdrop-filter: blur(4px);
   /* You may adjust the blur value as needed */
+  font-size: 1.25rem;
+
+  &>div+p {
+    margin-top: 1rem;
+  }
+
+  &>p {
+    font-weight: bold;
+    text-shadow: -1px 0 #000, 0 1px #000, 1px 0 #000, 0 -1px #000;
+    margin-bottom: 0.5rem;
+  }
 }
 
 .content {
