@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import type { ReqBody } from '../../api/src/models/ReqBody';
 import type { CardsResp } from '../../api/src/models/CardsResp';
 import Loader from './components/Loader.vue';
@@ -42,6 +42,21 @@ async function onSubmit() {
     isLoading.value = false;
   }
 }
+
+onMounted(() => {
+  const events = new EventSource(`http://0.0.0.0:8888/api/cards/sse`);
+  events.onmessage = (event) => {
+    console.log(event.data, event)
+  };
+  events.onerror = (event) => {
+    if (event.eventPhase === EventSource.CLOSED) {
+      events.close()
+    } else {
+      console.error('Error with SSE: ', event)
+    }
+  };
+  console.log('events', events)
+})
 </script>
 
 <template>
@@ -69,28 +84,14 @@ async function onSubmit() {
           </span>
           decks and pages
         </label>
-        <textarea
-          id="sourcess"
-          v-model="form.sources"
-          name="sourcess"
-          cols="30"
-          rows="4"
-          placeholder="List each ID on a new row ..."
-          required
-        />
+        <textarea id="sourcess" v-model="form.sources" name="sourcess" cols="30" rows="4"
+          placeholder="List each ID on a new row ..." required />
       </div>
 
       <div class="row">
         <label for="cards">Card names</label>
-        <textarea
-          id="cards"
-          v-model="form.cards"
-          name="cards"
-          cols="30"
-          rows="6"
-          placeholder="List each card name on a new row ..."
-          required
-        />
+        <textarea id="cards" v-model="form.cards" name="cards" cols="30" rows="6"
+          placeholder="List each card name on a new row ..." required />
       </div>
       <button type="submit">
         Submit
@@ -103,12 +104,7 @@ async function onSubmit() {
       <section class="results">
         <article v-for="(cards, sourceLink) in searchData" :key="sourceLink">
           <h2 class="title">
-            <a
-              :href="sourceLink.toString()"
-              class=""
-              target="_blank"
-              rel="noopener noreferrer"
-            >{{ sourceLink }}</a>
+            <a :href="sourceLink.toString()" class="" target="_blank" rel="noopener noreferrer">{{ sourceLink }}</a>
           </h2>
           <ul>
             <li v-for="card in cards" :key="card.id">
@@ -139,10 +135,11 @@ async function onSubmit() {
 }
 
 
-.v-popper{
+.v-popper {
   display: inline-block;
 }
-.v-popper--theme-tooltip .v-popper__inner{
+
+.v-popper--theme-tooltip .v-popper__inner {
   padding: 0 !important;
   border-radius: 12px;
 }

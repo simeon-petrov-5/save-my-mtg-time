@@ -6,6 +6,7 @@ import { ReqBody } from "../models/ReqBody";
 import { Card } from "../models/Card";
 import { extractDeckbox } from "../utils/extractDeckbox";
 import { CardsResp } from "../models/CardsResp";
+import { Stream } from "@elysiajs/stream";
 
 // TS - type the body?
 export const postCardsHandler = async (ctx: Context) => {
@@ -38,4 +39,18 @@ export const postCardsHandler = async (ctx: Context) => {
   });
   ctx.set.status = 200;
   return result;
+};
+
+export const sseCardsHandler = (ctx: Context) => {
+  return new Stream((stream) => {
+    let i = 0;
+    const interval = setInterval(() => {
+      stream.send("hello world " + (i+=1));
+    }, 500);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      stream.close('ALL DONE');
+    }, 3100);
+  });
 };
