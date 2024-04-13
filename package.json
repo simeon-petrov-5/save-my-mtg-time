@@ -1,0 +1,13 @@
+{
+  "name": "save-my-mtg-time",
+  "version": "1.0.0",
+  "description": "This is a rather simple app to help you with finding cards in multiple personal decks from moxfield and deckbox.",
+  "main": "index.js",
+  "scripts": {
+    "client": "cd ./client && bun dev",
+    "api": "cd ./api && bun dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
