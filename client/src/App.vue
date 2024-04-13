@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { nanoid } from 'nanoid';
 import type { ReqBody } from '../../api/src/models/ReqBody';
 import type { CardsResp } from '../../api/src/models/CardsResp';
+import type { Site } from '../../api/src/constants/sites';
 import Loader from './components/Loader.vue';
-import { nanoid } from 'nanoid'
-import { Site } from "../../api/src/constants/sites";
-
+import Card from './components/Card.vue';
 
 const form = reactive({
   sources: [
@@ -23,7 +23,7 @@ const form = reactive({
 });
 const searchData = ref<CardsResp | null>(null);
 const isLoading = ref(false);
-const crawlProgress = ref<{ [key in Site]: { total: number; current: number } } | null>(null)
+const crawlProgress = ref<{ [key in Site]: { total: number, current: number } } | null>(null);
 
 const stringToArr = (string: string) => string.split('\n').filter(Boolean);
 
@@ -39,13 +39,13 @@ async function onSubmit() {
     const resp = await fetch(`http://0.0.0.0:8888/api/cards?userId=${getUserId()}`, { method: 'POST', body: JSON.stringify(body) });
     const data = await resp.json();
     searchData.value = data ?? {};
-    clearTimeout(trackingTM)
+    clearTimeout(trackingTM);
 
     setTimeout(() => {
       document.querySelector('#results')?.scrollIntoView({
         behavior: 'smooth'
       });
-    }, 100)
+    }, 100);
   }
   catch (e) {
     console.error('Ooops', e);
@@ -55,17 +55,17 @@ async function onSubmit() {
   }
 }
 
-const getUserId = () => {
+function getUserId() {
   const userId = sessionStorage.getItem('userId');
   if (!userId) {
-    const id = nanoid()
+    const id = nanoid();
     sessionStorage.setItem('userId', id);
     return id;
   }
   return userId;
 }
 
-const handleProgressTracking = () => {
+function handleProgressTracking() {
   return setTimeout(() => {
     const events = new EventSource(`http://0.0.0.0:8888/api/cards/sse?userId=${getUserId()}`);
     events.onmessage = (event) => {
@@ -75,12 +75,12 @@ const handleProgressTracking = () => {
       if (event.eventPhase === EventSource.CLOSED) {
         events.close();
         crawlProgress.value = null;
-      } else {
-        console.error('Error with SSE: ', event)
+      }
+      else {
+        console.error('Error with SSE: ', event);
       }
     };
-  }, 1000)
-
+  }, 1000);
 }
 </script>
 
@@ -88,10 +88,14 @@ const handleProgressTracking = () => {
   <Transition>
     <div v-if="isLoading" class="loadingOverlay">
       <Loader />
-      <p v-if="crawlProgress?.moxfield.total">Moxfield pages progress: {{ crawlProgress.moxfield.current }}/{{
-      crawlProgress.moxfield.total }}</p>
-      <p v-if="crawlProgress?.deckbox.total">Deckbox pages progress: {{ crawlProgress.deckbox.current }}/{{
-      crawlProgress.deckbox.total }}</p>
+      <p v-if="crawlProgress?.moxfield.total">
+        Moxfield pages progress: {{ crawlProgress.moxfield.current }}/{{
+          crawlProgress.moxfield.total }}
+      </p>
+      <p v-if="crawlProgress?.deckbox.total">
+        Deckbox pages progress: {{ crawlProgress.deckbox.current }}/{{
+          crawlProgress.deckbox.total }}
+      </p>
     </div>
   </Transition>
   <div class="content">
@@ -113,14 +117,28 @@ const handleProgressTracking = () => {
           </span>
           decks and pages
         </label>
-        <textarea id="sourcess" v-model="form.sources" name="sourcess" cols="30" rows="4"
-          placeholder="List each ID on a new row ..." required />
+        <textarea
+          id="sourcess"
+          v-model="form.sources"
+          name="sourcess"
+          cols="30"
+          rows="4"
+          placeholder="List each ID on a new row ..."
+          required
+        />
       </div>
 
       <div class="row">
         <label for="cards">Card names</label>
-        <textarea id="cards" v-model="form.cards" name="cards" cols="30" rows="6"
-          placeholder="List each card name on a new row ..." required />
+        <textarea
+          id="cards"
+          v-model="form.cards"
+          name="cards"
+          cols="30"
+          rows="6"
+          placeholder="List each card name on a new row ..."
+          required
+        />
       </div>
       <button type="submit">
         Submit
@@ -128,25 +146,17 @@ const handleProgressTracking = () => {
     </form>
 
     <template v-if="searchData">
-      <h2 id="results">Results</h2>
+      <h2 id="results">
+        Results
+      </h2>
 
       <section class="results">
-        <article v-for="(cards, sourceLink) in searchData" :key="sourceLink">
-          <h2 class="title">
-            <a :href="sourceLink.toString()" class="" target="_blank" rel="noopener noreferrer">{{ sourceLink }}</a>
-          </h2>
-          <ul>
-            <li v-for="card in cards" :key="card.id">
-              <VTooltip placement="top-start">
-                <span>{{ card.name }}</span>
-
-                <template #popper>
-                  <img class="imgPreview" :src="card.imgUrl" alt="">
-                </template>
-              </VTooltip>
-            </li>
-          </ul>
-        </article>
+        <Card
+          v-for="(cards, sourceLink) in searchData"
+          :key="sourceLink"
+          :cards="cards"
+          :source-link="`${sourceLink}`"
+        />
       </section>
     </template>
   </div>
@@ -161,16 +171,6 @@ const handleProgressTracking = () => {
 .v-enter-from,
 .v-leave-to {
   opacity: 0;
-}
-
-
-.v-popper {
-  display: inline-block;
-}
-
-.v-popper--theme-tooltip .v-popper__inner {
-  padding: 0 !important;
-  border-radius: 12px;
 }
 </style>
 
@@ -263,11 +263,6 @@ const handleProgressTracking = () => {
   }
 }
 
-article .title {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
 .results {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -282,11 +277,5 @@ article .title {
   @media (min-width: 1024px) {
     gap: 1.5rem;
   }
-}
-
-.imgPreview {
-  width: 12rem;
-  border-radius: 12px;
-  overflow: hidden;
 }
 </style>

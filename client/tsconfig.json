@@ -9,6 +9,9 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "types": [
+      "unplugin-icons/types/vue"
+    ],
     "allowImportingTsExtensions": true,
 
     /* Linting */
