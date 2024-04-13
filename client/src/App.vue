@@ -36,7 +36,11 @@ async function onSubmit() {
 
   try {
     const trackingTM = handleProgressTracking();
-    const resp = await fetch(`http://0.0.0.0:8888/api/cards?userId=${getUserId()}`, { method: 'POST', body: JSON.stringify(body) });
+    const resp = await fetch(`http://0.0.0.0:8888/api/cards?userId=${getUserId()}`, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(body) 
+    });
     const data = await resp.json();
     searchData.value = data ?? {};
     clearTimeout(trackingTM);

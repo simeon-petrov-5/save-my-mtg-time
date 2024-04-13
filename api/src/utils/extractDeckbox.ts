@@ -1,27 +1,22 @@
 import { Card } from "../models/Card";
 import { getLastPage, scrapeDeckbox } from "./scrapper";
-import { deckboxCache, moxfieldCache } from "./cache";
-import { urlExtractor } from "./urlExtractor";
 import logging from "./logger";
-import { increaseUserProgressTotal, incrementUserProgress } from "./progressTracker";
+import { ExtractorArgs } from "../models/Extractors";
+
 
 export const extractDeckbox = async (
-  deckboxUrl: string,
-  userId:string
+  { url, urlId, progressTracker, cache }: ExtractorArgs
 ): Promise<{ source: string; cards: Map<string, Card> }> => {
-  const id = urlExtractor(deckboxUrl);
 
-  const cachedCards = deckboxCache.get(id);
+  const cachedCards = cache.get();
   if (cachedCards) {
-    logging.info(`[CACHE] Deckbox data for ${deckboxUrl}`);
-    return { source: deckboxUrl, cards: cachedCards };
+    return { source: url, cards: cachedCards };
   }
   let p = 1;
   try {
-    logging.info(`[SCRAPE] Deckbox started for ${deckboxUrl} page: ${p}`);
-    const initUrl = `https://deckbox.org/sets/${id}?p=${p}&v=l`;
+    logging.info(`[SCRAPE] Deckbox started for ${url} page: ${p}`);
+    const initUrl = `https://deckbox.org/sets/${urlId}?p=${p}&v=l`;
     const allCards = new Map<string, Card>();
-    
 
     const resp = await fetch(initUrl);
     if (!resp.ok) {
@@ -29,22 +24,34 @@ export const extractDeckbox = async (
     }
     const firstPage = await resp.text();
     const lastPage = getLastPage(firstPage);
-    increaseUserProgressTotal(userId, 'deckbox', lastPage);
+    progressTracker.addPages('deckbox', lastPage);
 
-    const promises = [scrapeDeckbox({ allCards, html: firstPage, userId })];
+    const promises = [
+      scrapeDeckbox({ allCards, html: firstPage })
+        .then(res => {
+          progressTracker.incrementProgress("deckbox");
+          return res
+        })
+    ];
 
     while (lastPage >= p) {
-      const url = `https://deckbox.org/sets/${id}?p=${(p += 1)}&v=l`;
-      promises.push(scrapeDeckbox({ allCards, url, userId }));
-      logging.info(`[SCRAPE] Deckbox started for ${deckboxUrl} page: ${p}`);
+      const url = `https://deckbox.org/sets/${urlId}?p=${(p += 1)}&v=l`;
+      promises.push(
+        scrapeDeckbox({ allCards, url })
+          .then(res => {
+            progressTracker.incrementProgress("deckbox");
+            return res
+          })
+      );
+      logging.info(`[SCRAPE] Deckbox started for ${url} page: ${p}`);
     }
 
     await Promise.allSettled(promises);
-    deckboxCache.set(id, allCards);
-    return { source: deckboxUrl, cards: allCards };
+    cache.set(allCards);
+    return { source: url, cards: allCards };
   } catch (e: any) {
     logging.error(
-      `[SCRAPE] Deckbox for ${deckboxUrl} page: ${p} failed with ` + e
+      `[SCRAPE] Deckbox for ${url} page: ${p} failed with ` + e
     );
     return { source: "", cards: new Map() };
   }

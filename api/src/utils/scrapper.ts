@@ -1,5 +1,4 @@
 import { Card } from "../models/Card";
-import { incrementUserProgress } from "./progressTracker";
 
 const { parse } = require("node-html-parser");
 
@@ -21,13 +20,11 @@ export const getLastPage = (html: string) => {
 export const scrapeDeckbox = async ({
   url,
   allCards,
-  html,
-  userId,
+  html
 }: {
   url?: string;
   html?: string;
   allCards: Map<string, Card>;
-  userId: string;
 }) => {
   let root = null;
   if (url) {
@@ -38,7 +35,7 @@ export const scrapeDeckbox = async ({
     root = parse(html);
   }
   const rows = await root.querySelectorAll("#set_cards_table_details tr[id]");
-  rows.forEach((row:any) => {
+  rows.forEach((row: any) => {
     const parsedRow = parse(row);
     const name = parsedRow.querySelector("td:nth-child(2)").text.trim() ?? "";
 
@@ -62,6 +59,5 @@ export const scrapeDeckbox = async ({
       allCards.set(name, card);
     }
   });
-  incrementUserProgress(userId, "deckbox");
   return true;
 };

@@ -1,30 +1,26 @@
 import { Card } from "../models/Card";
-import { moxfieldCache } from "./cache";
+import { ExtractorArgs } from "../models/Extractors";
 import logging from "./logger";
-import { increaseUserProgressTotal, incrementUserProgress } from "./progressTracker";
-import { urlExtractor } from "./urlExtractor";
+
+
 
 export const extractMoxfield = async (
-  moxUrl: string,
-  userId: string
+  { url, urlId, progressTracker, cache }: ExtractorArgs
 ): Promise<{ source: string; cards: Map<string, Card> }> => {
-  const id = urlExtractor(moxUrl);
 
-  const cachedCards = moxfieldCache.get(id);
+  const cachedCards = cache.get();
   if (cachedCards) {
-    logging.info(`[CACHE] Moxfield data for ${moxUrl}`);
-    return { source: moxUrl, cards: cachedCards };
+    return { source: url, cards: cachedCards };
   }
   try {
-    logging.info(`[SCRAPE] Moxfield started for ${moxUrl}`);
-    increaseUserProgressTotal(userId, 'moxfield', 1);
-    const resp = await fetch(`https://api2.moxfield.com/v3/decks/all/${id}`);
+    logging.info(`[SCRAPE] Moxfield started for ${url}`);
+    progressTracker.addPages('moxfield', 1);
+
+    const resp = await fetch(`https://api2.moxfield.com/v3/decks/all/${urlId}`);
     if (!resp.ok) {
       throw new Error(`HTTP Response Code: ${resp?.status}`);
     }
     const data = await resp.json();
-
-    // const cardsList: Card[] = [];
     const allCards = new Map<string, Card>();
 
     for (const boardType in data.boards) {
@@ -47,11 +43,11 @@ export const extractMoxfield = async (
         }
       }
     }
-    incrementUserProgress(userId, "moxfield");
-    moxfieldCache.set(id, allCards);
-    return { source: moxUrl, cards: allCards };
+    progressTracker.incrementProgress("moxfield");
+    cache.set(allCards);
+    return { source: url, cards: allCards };
   } catch (e: any) {
-    logging.error(`[SCRAPE] Moxfield for ${moxUrl} failed with ` + e);
-    return { source: moxUrl, cards: new Map() };
+    logging.error(`[SCRAPE] Moxfield for ${url} failed with ` + e);
+    return { source: url, cards: new Map() };
   }
 };

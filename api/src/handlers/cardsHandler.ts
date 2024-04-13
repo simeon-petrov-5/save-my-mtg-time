@@ -7,29 +7,26 @@ import { Card } from "../models/Card";
 import { extractDeckbox } from "../utils/extractDeckbox";
 import { CardsResp } from "../models/CardsResp";
 import { Stream } from "@elysiajs/stream";
-import {
-  cleanUserProgress,
-  getUserProgress,
-  initUserProgress,
-} from "../utils/progressTracker";
+import { ProgressTracker } from "../utils/progressTracker";
+import { CrawlerCache } from "../utils/cache";
+import { urlExtractor } from "../utils/urlExtractor";
 
-// TS - type the body?
-export const postCardsHandler = async (ctx: Context) => {
-  const payload = JSON.parse(ctx.body as unknown as string) as ReqBody;
-  const userId = ctx.query.userId;
-  if (!userId) {
-    // This should be added to a middleware validator!!!
-    ctx.set.status = 400;
-    return "Missing unique user id!";
-  }
-  initUserProgress(userId);
+
+export const postCardsHandler = async (userId: string, payload: ReqBody) => {
+  const progressTracker = new ProgressTracker(userId);
+  progressTracker.start();
+
   const promises: Promise<{ source: string; cards: Map<string, Card> }>[] = [];
 
-  payload.sources.forEach((sourceUrl) => {
-    if (sourceUrl.includes("moxfield.com")) {
-      promises.push(extractMoxfield(sourceUrl, userId));
-    } else if (sourceUrl.includes("deckbox.org")) {
-      promises.push(extractDeckbox(sourceUrl, userId));
+  payload.sources.forEach((url) => {
+    const urlId = urlExtractor(url)
+
+    if (url.includes("moxfield.com")) {
+      const cache = new CrawlerCache("moxfield", url, urlId)
+      promises.push(extractMoxfield({ url, urlId, progressTracker, cache }));
+    } else if (url.includes("deckbox.org")) {
+      const cache = new CrawlerCache("deckbox", url, urlId)
+      promises.push(extractDeckbox({ url, urlId, progressTracker, cache }));
     }
   });
 
@@ -49,22 +46,17 @@ export const postCardsHandler = async (ctx: Context) => {
       }
     });
   });
-  cleanUserProgress(userId);
-  ctx.set.status = 200;
+
+  progressTracker.stop();
   return result;
 };
 
-export const sseCardsHandler = (ctx: Context) => {
-  const userId = ctx.query.userId;
-  if (!userId) {
-    // This should be added to a middleware validator!!!
-    ctx.set.status = 400;
-    return "Missing unique user id!";
-  }
+export const sseCardsHandler = (userId: string) => {
+  const progressTracker = new ProgressTracker(userId)
 
   return new Stream((stream) => {
     const interval = setInterval(() => {
-      const progress = getUserProgress(userId);
+      const progress = progressTracker.getProgress();
       if (progress) {
         stream.send(JSON.stringify(progress));
       } else {

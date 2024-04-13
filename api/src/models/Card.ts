@@ -4,3 +4,5 @@ export type Card = {
   id: string;
   imgUrl: string;
 };
+
+export type UserCards = Map<string, Card>;
