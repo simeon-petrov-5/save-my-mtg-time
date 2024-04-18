@@ -39,39 +39,3 @@ export class ProgressTracker {
     }
   };
 }
-
-export const start = (userId: string) => {
-  tracker.set(userId, {
-    deckbox: { total: 0, current: 0 },
-    moxfield: { total: 0, current: 0 }
-  });
-};
-
-export const stop = (userId: string) => {
-  tracker.delete(userId);
-};
-
-export const getProgress = (userId: string) => {
-  const progress = tracker.get(userId);
-  return progress;
-};
-
-export const addToTotal = (userId: string, origin: Site, totalSize: number) => {
-  const progress = tracker.get(userId);
-  if (progress) {
-    progress[origin].total += totalSize;
-  }
-};
-
-export const incrementProgress = (userId: string, origin: Site) => {
-  const progress = tracker.get(userId);
-  if (progress && progress[origin].current < progress[origin].total) {
-    progress[origin].current += 1;
-  }
-};
-
-const progressTracker = {
-  start, stop, getProgress, addToTotal, incrementProgress
-}
-
-export default progressTracker;

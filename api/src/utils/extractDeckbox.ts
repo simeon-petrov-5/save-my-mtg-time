@@ -1,12 +1,12 @@
 import { Card } from "../models/Card";
 import { getLastPage, scrapeDeckbox } from "./scrapper";
 import logging from "./logger";
-import { ExtractorArgs } from "../models/Extractors";
+import { ExtractorArgs, ExtractorRes } from "../models/Extractors";
 
 
 export const extractDeckbox = async (
   { url, urlId, progressTracker, cache }: ExtractorArgs
-): Promise<{ source: string; cards: Map<string, Card> }> => {
+): Promise<ExtractorRes> => {
 
   const cachedCards = cache.get();
   if (cachedCards) {
@@ -51,7 +51,7 @@ export const extractDeckbox = async (
     return { source: url, cards: allCards };
   } catch (e: any) {
     logging.error(
-      `[SCRAPE] Deckbox for ${url} page: ${p} failed with ` + e
+      `[🔎 Extractor failed] Deckbox for ${url} page: ${p} failed with ` + e
     );
     return { source: "", cards: new Map() };
   }

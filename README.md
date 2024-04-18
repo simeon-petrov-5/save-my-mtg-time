@@ -40,10 +40,10 @@ The API project is built on `Bun` with `Elysia` and `TypeScript`. Features:
 - [X] Server-Side-Events for when we scrape bigger chunks of data and it takes more than 3 sec (triggered by the client project)
 - [X] Caching the fetched data for a certain time so we're good citizens and we don't wreak havok upon other people's services
 - [X] Logging via pino
+- [X] Validate the API's responses for any changes via [TypeBox](https://elysiajs.com/validation/primitive-type)
 
 ## Future updates
 - [ ] Creating a user profile so you can create, save and manage wishlists
 - [ ] Notifications in the UI
-- [ ] Validate the API's responses for any changes via [TypeBox](https://elysiajs.com/validation/primitive-type)
 - [ ] Better error handling/catching if an extractor fails
 - [ ] Support for Archidekt

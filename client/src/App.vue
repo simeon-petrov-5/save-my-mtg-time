@@ -36,7 +36,7 @@ async function onSubmit() {
 
   try {
     const trackingTM = handleProgressTracking();
-    const resp = await fetch(`http://0.0.0.0:8888/api/cards?userId=${getUserId()}`, { 
+    const resp = await fetch(`http://localhost:8888/api/cards?userId=${getUserId()}`, { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(body) 
@@ -71,7 +71,7 @@ function getUserId() {
 
 function handleProgressTracking() {
   return setTimeout(() => {
-    const events = new EventSource(`http://0.0.0.0:8888/api/cards/sse?userId=${getUserId()}`);
+    const events = new EventSource(`http://localhost:8888/api/cards/sse?userId=${getUserId()}`);
     events.onmessage = (event) => {
       crawlProgress.value = JSON.parse(event.data);
     };

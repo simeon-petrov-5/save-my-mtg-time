@@ -1,12 +1,13 @@
 import { Card } from "../models/Card";
-import { ExtractorArgs } from "../models/Extractors";
+import { ExtractorArgs, ExtractorRes } from "../models/Extractors";
+import { MoxfieldResp } from "../models/schemas/MoxfieldSchema";
 import logging from "./logger";
-
+import { validateMoxfieldResponse } from "./schemaValidators";
 
 
 export const extractMoxfield = async (
   { url, urlId, progressTracker, cache }: ExtractorArgs
-): Promise<{ source: string; cards: Map<string, Card> }> => {
+): Promise<ExtractorRes> => {
 
   const cachedCards = cache.get();
   if (cachedCards) {
@@ -20,11 +21,12 @@ export const extractMoxfield = async (
     if (!resp.ok) {
       throw new Error(`HTTP Response Code: ${resp?.status}`);
     }
-    const data = await resp.json();
+    const result = await resp.json();
+    const data = validateMoxfieldResponse(result)
     const allCards = new Map<string, Card>();
 
     for (const boardType in data.boards) {
-      const { cards } = data.boards[boardType];
+      const { cards } = data.boards[boardType as keyof MoxfieldResp['boards']];
 
       for (const uniqueCardId in cards) {
         const entry = cards[uniqueCardId];
@@ -47,7 +49,7 @@ export const extractMoxfield = async (
     cache.set(allCards);
     return { source: url, cards: allCards };
   } catch (e: any) {
-    logging.error(`[SCRAPE] Moxfield for ${url} failed with ` + e);
+    logging.error(`[🔎 Extractor failed] Moxfield for ${url} failed with ` + e);
     return { source: url, cards: new Map() };
   }
 };
